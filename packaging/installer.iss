@@ -3,7 +3,7 @@
 [Setup]
 AppId={{A7B3E1C4-6D28-4F5A-9C01-2E8B7D4A6F10}
 AppName=行情浮窗
-AppVersion=1.1
+AppVersion=1.2
 AppPublisher=行情浮窗
 DefaultDirName={localappdata}\StockWidget
 DefaultGroupName=行情浮窗
@@ -18,6 +18,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\StockWidget.exe
 SetupIconFile=..\assets\stock-widget.ico
 CloseApplications=yes
+RestartApplications=no
 
 [Files]
 Source: "..\dist\StockWidget\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -27,4 +28,4 @@ Name: "{group}\行情浮窗"; Filename: "{app}\StockWidget.exe"
 Name: "{autodesktop}\行情浮窗"; Filename: "{app}\StockWidget.exe"
 
 [Run]
-Filename: "{app}\StockWidget.exe"; Description: "启动行情浮窗"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\StockWidget.exe"; Description: "启动行情浮窗"; Flags: nowait postinstall

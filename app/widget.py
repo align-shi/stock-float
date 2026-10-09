@@ -20,7 +20,9 @@ import os
 from collections import deque
 from ctypes import wintypes
 import queue
+import subprocess
 import sys
+import tempfile
 import threading
 import time
 import tkinter as tk
@@ -50,7 +52,7 @@ from quotes import (
 CONF_FILE = os.path.join(DATA_DIR, "widget.json")
 LOCK_FILE = os.path.join(DATA_DIR, "widget.lock")
 
-APP_VERSION = "1.1"
+APP_VERSION = "1.2"
 UPDATE_API = "https://api.github.com/repos/align-shi/stock-float/releases/latest"
 
 WIDTH_MIN = 140          # 窗口最小宽度；实际宽度按内容算（见 calc_width）
@@ -230,6 +232,7 @@ class StockWidget:
         self._quit_after = None     # 退出兜底计时器的句柄，销毁时要摘掉
         self._adding = False        # 添加股票的输入框是否已打开
         self._add_pending = False   # 菜单里点了添加，等菜单循环退出再弹框
+        self._alpha_pending = False  # 菜单里点了自定义不透明度，等菜单收干净再弹框
         self._theme_pending = None  # 菜单里点了主题，等菜单收干净再重建界面
 
         # 涨跌异动提醒
@@ -488,6 +491,8 @@ class StockWidget:
         for a in (1.0, 0.93, 0.85, 0.75, 0.6, 0.5):
             sub.add_command(label="%d%%" % round(a * 100),
                             command=lambda v=a: self.set_alpha(v))
+        sub.add_separator()
+        sub.add_command(label="自定义…", command=self.custom_alpha)
         m.add_cascade(label="不透明度", menu=sub)
 
         subm = tk.Menu(m, tearoff=0)
@@ -555,6 +560,9 @@ class StockWidget:
             if self._add_pending:
                 self.destroy_menu(m)
                 self.root.after_idle(self._begin_add_prompt)
+            elif self._alpha_pending:
+                self.destroy_menu(m)
+                self.root.after_idle(self._begin_alpha_prompt)
             elif self._theme_pending:
                 name = self._theme_pending
                 self._theme_pending = None
@@ -581,6 +589,56 @@ class StockWidget:
         self.root.attributes("-alpha", float(v))
         self.conf["alpha"] = float(v)
         self.save_conf()
+
+    def custom_alpha(self):
+        """记下「要改不透明度」，等菜单循环退出再弹输入框。"""
+        if self._adding or self._alpha_pending or self._closing:
+            return
+        if self._menu_loop:
+            self._alpha_pending = True
+            try:
+                ctypes.windll.user32.EndMenu()
+            except Exception as e:
+                log_error("结束菜单失败", e)
+            return
+        self._begin_alpha_prompt()
+
+    def _begin_alpha_prompt(self):
+        if self._adding or self._closing or self._destroyed:
+            self._alpha_pending = False
+            return
+        self._alpha_pending = False
+        self._adding = True
+        try:
+            ctypes.windll.user32.EndMenu()
+        except Exception as e:
+            log_error("结束菜单失败", e)
+        m = self._menu
+        self._menu = None
+        if m is not None:
+            self.destroy_menu(m)
+        try:
+            self.root.after(0, self._prompt_alpha)
+        except Exception as e:
+            self._adding = False
+            log_error("排不透明度对话框失败", e)
+
+    def _prompt_alpha(self):
+        try:
+            if self._closing or self._destroyed:
+                return
+            cur = int(round(float(self.conf.get("alpha", 0.93)) * 100))
+            q = self.ask_text("不透明度", "输入 10 到 100 的整数：", str(cur))
+            if q is None or not str(q).strip():
+                return
+            alpha = parse_opacity(q)
+            if alpha is None:
+                messagebox.showwarning(
+                    "不透明度", "请输入 10 到 100 之间的整数", parent=self.root)
+                return
+            self.set_alpha(alpha)
+        finally:
+            self._adding = False
 
     def set_theme(self, name):
         if name not in THEMES or self._closing:
@@ -683,7 +741,7 @@ class StockWidget:
         finally:
             self._adding = False
 
-    def ask_text(self, title, prompt):
+    def ask_text(self, title, prompt, initial=""):
         """自绘输入框。不要用 simpledialog，也不要 transient 到浮窗。"""
         win = tk.Toplevel(self.root)
         win.title(title)
@@ -694,7 +752,7 @@ class StockWidget:
         tk.Label(win, text=prompt, bg="#ffffff", fg="#1f2329",
                  font=self.f_name, anchor="w").pack(fill="x", padx=16, pady=(14, 8))
 
-        var = tk.StringVar()
+        var = tk.StringVar(value=initial)
         ent = tk.Entry(win, textvariable=var, font=self.f_name, width=28,
                        relief="solid", bd=1)
         ent.pack(fill="x", padx=16)
@@ -730,6 +788,8 @@ class StockWidget:
         except tk.TclError as e:
             log_error("对话框未能独占输入", e)
         ent.focus_set()
+        if initial:
+            ent.selection_range(0, "end")
         self.root.wait_window(win)
         return result["v"]
 
@@ -1170,15 +1230,83 @@ class StockWidget:
     def prompt_update(self, remote_tag, title, url):
         if self._closing or self._destroyed:
             return
-        self.conf["update_seen"] = remote_tag
-        self.save_conf()
         go = messagebox.askyesno(
             "行情浮窗",
-            "发现新版本 %s。\n\n现在下载安装包吗？\n下载后请先退出浮窗，再覆盖安装。" % title,
+            "发现新版本 %s。\n\n点“是”后会自动下载并安装，浮窗会先退出，装好后自动重新打开。" % title,
             parent=self.root,
         )
-        if go and url:
+        if not go:
+            self.conf["update_seen"] = remote_tag
+            self.save_conf()
+            return
+        if not url.lower().split("?", 1)[0].endswith(".exe"):
             webbrowser.open(url)
+            return
+        self._show_update_status("正在下载更新…")
+        threading.Thread(target=self._download_and_apply, args=(url,), daemon=True).start()
+
+    def _show_update_status(self, text):
+        win = tk.Toplevel(self.root)
+        win.title("行情浮窗")
+        win.attributes("-topmost", True)
+        win.resizable(False, False)
+        win.configure(bg="#ffffff")
+        lbl = tk.Label(win, text=text, bg="#ffffff", fg="#1f2329",
+                       font=self.f_name, padx=24, pady=18)
+        lbl.pack()
+        win.update_idletasks()
+        w_, h_ = win.winfo_reqwidth(), win.winfo_reqheight()
+        win.geometry("+%d+%d" % ((win.winfo_screenwidth() - w_) // 2,
+                                 (win.winfo_screenheight() - h_) // 3))
+        win.lift()
+        self._update_win = win
+        self._update_lbl = lbl
+
+    def _set_update_status(self, text):
+        lbl = getattr(self, "_update_lbl", None)
+        if lbl is not None:
+            try:
+                lbl.config(text=text)
+            except tk.TclError:
+                pass
+
+    def _download_and_apply(self, url):
+        try:
+            path = download_installer(url)
+        except Exception as e:
+            log_error("下载更新失败", e)
+            try:
+                self.root.after(0, lambda: self._update_failed("下载失败，请稍后再试。"))
+            except Exception:
+                pass
+            return
+        try:
+            self.root.after(0, lambda: self._apply_downloaded(path))
+        except Exception as e:
+            log_error("安排安装失败", e)
+
+    def _update_failed(self, text):
+        win = getattr(self, "_update_win", None)
+        if win is not None:
+            try:
+                win.destroy()
+            except tk.TclError:
+                pass
+        self._update_win = None
+        if not self._closing and not self._destroyed:
+            messagebox.showwarning("行情浮窗", text, parent=self.root)
+
+    def _apply_downloaded(self, path):
+        if self._closing or self._destroyed:
+            return
+        self._set_update_status("正在安装，浮窗会自动重新打开…")
+        try:
+            launch_installer(path)
+        except Exception as e:
+            log_error("启动安装包失败", e)
+            self._update_failed("无法启动安装包。")
+            return
+        self.quit()
 
     def eff_interval(self):
         """实际使用的间隔：集合竞价 10 秒；连续竞价按配置。失败时放慢。"""
@@ -1480,6 +1608,42 @@ class StockWidget:
             else:
                 self.status_lbl.pack_forget()
             self.fit_and_bind()
+
+
+def download_installer(url):
+    """把 GitHub Release 里的安装包下到临时目录，并确认是 Windows 可执行文件。"""
+    folder = os.path.join(tempfile.gettempdir(), "stock-float-update")
+    os.makedirs(folder, exist_ok=True)
+    dest = os.path.join(folder, "setup.exe")
+    req = urllib.request.Request(url, headers={"User-Agent": "stock-float"})
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        data = resp.read()
+    if len(data) < 64 or not data.startswith(b"MZ"):
+        raise ValueError("下载到的文件不是安装包")
+    with open(dest, "wb") as f:
+        f.write(data)
+    return dest
+
+
+def launch_installer(path):
+    """静默覆盖安装。安装结束会重新打开浮窗，当前进程随后退出。"""
+    subprocess.Popen(
+        [path, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-",
+         "/CLOSEAPPLICATIONS", "/FORCECLOSEAPPLICATIONS", "/NORESTARTAPPLICATIONS"],
+        close_fds=False,
+        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+    )
+
+
+def parse_opacity(text):
+    """把用户输入换成 0.10–1.00。只接受 10 到 100 的整数。"""
+    s = (text or "").strip().rstrip("%").strip()
+    if not s or not s.isdigit():
+        return None
+    n = int(s)
+    if n < 10 or n > 100:
+        return None
+    return n / 100.0
 
 
 def version_tuple(text):
