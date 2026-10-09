@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 
-BASE = r'C:\Users\admin\WorkBuddy\2026-09-23-13-42-45\stock-monitor'
+BASE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app")
 sys.path.insert(0, BASE)
 
 import widget as W                      # noqa: E402

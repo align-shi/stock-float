@@ -14,10 +14,10 @@ echo Starting new widget...
 call "%~dp0start-widget.bat"
 
 timeout /t 2 /nobreak >nul
-if exist widget-error.log (
+if exist "%~dp0..\widget-error.log" (
   echo.
   echo --- widget-error.log tail ---
-  powershell -NoProfile -Command "Get-Content -Tail 12 -Encoding UTF8 widget-error.log"
+  powershell -NoProfile -Command "Get-Content -Tail 12 -Encoding UTF8 '%~dp0..\widget-error.log'"
 )
 echo Done. If no window appears, press Alt+V, or check widget-error.log.
 timeout /t 4 /nobreak >nul

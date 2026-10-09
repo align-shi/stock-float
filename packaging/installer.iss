@@ -8,7 +8,7 @@ AppPublisher=行情浮窗
 DefaultDirName={localappdata}\StockWidget
 DefaultGroupName=行情浮窗
 DisableProgramGroupPage=yes
-OutputDir=installer
+OutputDir=..\installer
 OutputBaseFilename=行情浮窗安装包
 Compression=lzma2
 SolidCompression=yes
@@ -16,11 +16,11 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\StockWidget.exe
-SetupIconFile=stock-widget.ico
+SetupIconFile=..\assets\stock-widget.ico
 CloseApplications=yes
 
 [Files]
-Source: "dist\StockWidget\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\StockWidget\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\行情浮窗"; Filename: "{app}\StockWidget.exe"

@@ -19,14 +19,16 @@ try:
 except Exception:
     pass
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(PACKAGE_DIR)
+BASE_DIR = PACKAGE_DIR
 
 
 def data_dir():
     """自选、窗口位置、日志的存放目录。
 
     安装版 exe 不能写在程序旁边或临时解压目录里，否则退出或覆盖安装会丢数据。
-    源码直接运行时仍放在项目目录，方便调试。
+    源码直接运行时仍放在项目根目录，方便调试。
     """
     if getattr(sys, "frozen", False):
         root = os.environ.get("APPDATA") or os.path.expanduser("~")
@@ -36,7 +38,7 @@ def data_dir():
         except OSError:
             pass
         return path
-    return BASE_DIR
+    return PROJECT_ROOT
 
 
 DATA_DIR = data_dir()

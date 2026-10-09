@@ -10,7 +10,7 @@ import os
 
 from PIL import Image, ImageDraw
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+BASE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
 S = 1024
 
 BG = (27, 30, 36, 255)        # #1b1e24 与浮窗深色背景一致

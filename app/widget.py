@@ -26,6 +26,8 @@ import time
 import tkinter as tk
 import tkinter.font as tkfont
 import traceback
+import urllib.request
+import webbrowser
 from datetime import datetime
 from tkinter import messagebox
 
@@ -47,6 +49,9 @@ from quotes import (
 
 CONF_FILE = os.path.join(DATA_DIR, "widget.json")
 LOCK_FILE = os.path.join(DATA_DIR, "widget.lock")
+
+APP_VERSION = "1.1"
+UPDATE_API = "https://api.github.com/repos/align-shi/stock-float/releases/latest"
 
 WIDTH_MIN = 140          # 窗口最小宽度；实际宽度按内容算（见 calc_width）
 PAD = 9                  # 左右内边距
@@ -1123,6 +1128,57 @@ class StockWidget:
     def start(self):
         threading.Thread(target=self.hotkey_loop, daemon=True).start()
         self.root.after(300, self.loop)
+        self.root.after(2000, self.schedule_update_check)
+
+    def schedule_update_check(self):
+        """安装版启动后看一眼 GitHub 最新 Release，不打断开窗。"""
+        if not getattr(sys, "frozen", False) or self._closing:
+            return
+        threading.Thread(target=self.fetch_update, daemon=True).start()
+
+    def fetch_update(self):
+        try:
+            req = urllib.request.Request(UPDATE_API, headers={
+                "User-Agent": "stock-float",
+                "Accept": "application/vnd.github+json",
+            })
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            remote_tag = data.get("tag_name") or ""
+            remote = version_tuple(remote_tag)
+            local = version_tuple(APP_VERSION)
+            if not remote or not local or remote <= local:
+                return
+            if str(self.conf.get("update_seen") or "") == remote_tag:
+                return
+            url = ""
+            for asset in data.get("assets") or []:
+                if (asset.get("name") or "").lower().endswith(".exe"):
+                    url = asset.get("browser_download_url") or ""
+                    break
+            if not url:
+                url = data.get("html_url") or ""
+            title = data.get("name") or remote_tag
+        except Exception as e:
+            log_error("检查更新失败", e)
+            return
+        try:
+            self.root.after(0, lambda: self.prompt_update(remote_tag, title, url))
+        except Exception as e:
+            log_error("安排更新提示失败", e)
+
+    def prompt_update(self, remote_tag, title, url):
+        if self._closing or self._destroyed:
+            return
+        self.conf["update_seen"] = remote_tag
+        self.save_conf()
+        go = messagebox.askyesno(
+            "行情浮窗",
+            "发现新版本 %s。\n\n现在下载安装包吗？\n下载后请先退出浮窗，再覆盖安装。" % title,
+            parent=self.root,
+        )
+        if go and url:
+            webbrowser.open(url)
 
     def eff_interval(self):
         """实际使用的间隔：集合竞价 10 秒；连续竞价按配置。失败时放慢。"""
@@ -1424,6 +1480,22 @@ class StockWidget:
             else:
                 self.status_lbl.pack_forget()
             self.fit_and_bind()
+
+
+def version_tuple(text):
+    """把 'v1.2.3' / '1.1' 变成可比较的数字元组。认不出就返回 None。"""
+    nums = []
+    for part in (text or "").strip().lstrip("vV").split("."):
+        digits = ""
+        for ch in part:
+            if ch.isdigit():
+                digits += ch
+            else:
+                break
+        if not digits:
+            return None
+        nums.append(int(digits))
+    return tuple(nums) if nums else None
 
 
 def seed_bundled_watchlist():

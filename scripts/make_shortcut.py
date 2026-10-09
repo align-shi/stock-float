@@ -10,10 +10,12 @@ import os
 import subprocess
 import time
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+SCRIPTS = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(SCRIPTS)
+BASE = SCRIPTS
 DESKTOP = os.path.join(os.environ.get("USERPROFILE", ""), "Desktop")
-TARGET = os.path.join(BASE, "start-widget.bat")
-ICON = os.path.join(BASE, "stock-widget.ico")
+TARGET = os.path.join(SCRIPTS, "start-widget.bat")
+ICON = os.path.join(ROOT, "assets", "stock-widget.ico")
 LNK = os.path.join(DESKTOP, "开源节流.lnk")
 LOG = os.path.join(BASE, "shortcut.log")
 

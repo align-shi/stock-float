@@ -1,11 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
 
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(SPEC)))
 
 a = Analysis(
-    ['widget.py'],
-    pathex=[],
+    [os.path.join(ROOT, 'app', 'widget.py')],
+    pathex=[os.path.join(ROOT, 'app')],
     binaries=[],
-    datas=[('watchlist.json', '.')],
+    datas=[(os.path.join(ROOT, 'watchlist.json'), '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -32,7 +34,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='stock-widget.ico',
+    icon=os.path.join(ROOT, 'assets', 'stock-widget.ico'),
 )
 coll = COLLECT(
     exe,

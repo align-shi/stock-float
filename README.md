@@ -21,21 +21,21 @@ A lightweight Windows desktop widget for China A-share real-time quotes.
 需要 Python 3.8+，并带上自带的 Tcl/Tk。
 
 ```bat
-python widget.py
+python app\widget.py
 ```
 
 不想看到黑色控制台窗口：
 
 ```bat
-pythonw widget.py
+pythonw app\widget.py
 ```
 
-也可以双击 `start-widget.bat`。
+也可以双击 `scripts\start-widget.bat`。
 
 网页看板是另一个程序：
 
 ```bat
-python monitor.py
+python app\monitor.py
 ```
 
 浏览器会打开 `http://127.0.0.1:8899/`。
@@ -54,10 +54,18 @@ python monitor.py
 ## 打包安装包
 
 ```bat
-python -m PyInstaller --noconfirm --clean StockWidget.spec
+python -m PyInstaller --noconfirm --clean packaging\StockWidget.spec
 ```
 
-再用 Inno Setup 编译 `installer.iss`，得到 `installer\行情浮窗安装包.exe`。
+再用 Inno Setup 编译 `packaging\installer.iss`，得到 `installer\行情浮窗安装包.exe`。
+
+目录大致是：
+
+- `app/` 浮窗、网页看板和行情逻辑
+- `tests/` 离线测试
+- `assets/` 图标
+- `scripts/` 启动脚本
+- `packaging/` 打包配置
 
 ## 许可
 

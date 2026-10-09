@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-cd /d "%~dp0"
+cd /d "%~dp0.."
 title A-share realtime board
 
 rem monitor.py prints Chinese to stdout as UTF-8, hence chcp 65001 above.
@@ -19,7 +19,7 @@ if not defined PY (
 echo Starting board... the browser opens automatically.
 echo Close this window to stop monitoring.
 echo.
-%PY% monitor.py
+%PY% "%~dp0..\app\monitor.py"
 echo.
 echo Board stopped.
 pause

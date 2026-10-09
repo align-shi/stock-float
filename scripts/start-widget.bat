@@ -1,5 +1,5 @@
 @echo off
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 rem The widget needs tkinter; the managed Python 3.13 build has none.
 rem Probe known interpreter locations first, then fall back to PATH.
@@ -27,5 +27,5 @@ if not defined PY (
 rem pythonw.exe has no console. python.exe's console is the same process:
 rem closing that black window kills the widget.
 for %%I in ("%PY%") do if exist "%%~dpIpythonw.exe" set "PY=%%~dpIpythonw.exe"
-start "" "%PY%" widget.py
+start "" "%PY%" "%~dp0..\app\widget.py"
 exit /b 0
