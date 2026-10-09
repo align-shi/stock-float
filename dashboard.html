@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A股行情监测</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --card:#fff; --line:#e6e8ec; --line-soft:#f0f1f4;
+    --text:#1f2329; --muted:#8b909a; --accent:#2b6cf6;
+    --up:#d9342b; --down:#17a35c; --flat:#8b909a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--text); font-size:14px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+    font-variant-numeric:tabular-nums;
+  }
+  /* ---------- 顶栏 ---------- */
+  .bar{
+    position:sticky; top:0; z-index:20; display:flex; align-items:center;
+    gap:12px; padding:0 20px; height:56px;
+    background:rgba(255,255,255,.92); backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex; align-items:center; gap:9px; font-weight:600; font-size:15px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);box-shadow:0 0 0 3px rgba(139,144,154,.14)}
+  .dot.open{background:var(--up);box-shadow:0 0 0 3px rgba(217,52,43,.14);animation:pulse 2s infinite}
+  .dot.break{background:#e8a33d;box-shadow:0 0 0 3px rgba(232,163,61,.16)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .pill{
+    font-size:12px; font-weight:500; padding:2px 9px; border-radius:20px;
+    background:var(--line-soft); color:var(--muted); border:1px solid var(--line);
+  }
+  .pill.open{background:#fdeceb; color:var(--up); border-color:#f7d5d2}
+  .pill.break{background:#fdf3e5; color:#b9761d; border-color:#f7e3c6}
+  .meta{margin-left:auto; display:flex; align-items:center; gap:10px; color:var(--muted); font-size:12.5px}
+  .sep{width:1px;height:16px;background:var(--line)}
+  .countdown{color:var(--text); font-weight:500}
+  .btn{
+    border:1px solid var(--line); background:#fff; color:var(--text);
+    padding:5px 12px; border-radius:8px; font-size:12.5px; cursor:pointer;
+    font-family:inherit; transition:.15s;
+  }
+  .btn:hover{border-color:#cfd4dc; background:#fafbfc}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:500}
+  .btn.primary:hover{background:#1f5ee0; border-color:#1f5ee0}
+  .btn.on{background:#eef3ff; border-color:#c9daff; color:var(--accent)}
+
+  /* ---------- 添加区 ---------- */
+  .wrap{max-width:1280px; margin:0 auto; padding:20px}
+  .adder{display:flex; gap:10px; margin-bottom:6px}
+  .adder input{
+    flex:1; height:40px; padding:0 14px; border-radius:10px; font-size:14px;
+    border:1px solid var(--line); background:#fff; color:var(--text);
+    font-family:inherit; outline:none; transition:.15s;
+  }
+  .adder input:focus{border-color:#b9cdfb; box-shadow:0 0 0 3px rgba(43,108,246,.1)}
+  .adder .btn{height:40px; padding:0 20px; border-radius:10px; font-size:13.5px}
+  .hint{min-height:20px; font-size:12.5px; color:var(--muted); margin:2px 2px 14px}
+  .hint.err{color:var(--up)}
+  .hint.ok{color:var(--down)}
+
+  /* ---------- 卡片 ---------- */
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(310px,1fr)); gap:16px}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:16px 16px 14px; position:relative; transition:.18s;
+  }
+  .card:hover{box-shadow:0 6px 20px rgba(31,35,41,.07); border-color:#dadde3}
+  .card.up::before,.card.down::before{
+    content:""; position:absolute; left:0; top:14px; bottom:14px; width:3px; border-radius:0 3px 3px 0;
+  }
+  .card.up::before{background:var(--up)}
+  .card.down::before{background:var(--down)}
+  .card-head{display:flex; align-items:flex-start; gap:8px}
+  .cname{font-size:15px; font-weight:600; line-height:1.3}
+  .ccode{font-size:11.5px; color:var(--muted); margin-top:2px; letter-spacing:.3px}
+  .del{
+    margin-left:auto; width:24px; height:24px; border-radius:7px; border:none;
+    background:transparent; color:#c2c7d0; font-size:17px; line-height:1; cursor:pointer;
+    opacity:0; transition:.15s; font-family:inherit;
+  }
+  .card:hover .del{opacity:1}
+  .del:hover{background:#fdeceb; color:var(--up)}
+
+  .price-row{display:flex; align-items:baseline; gap:10px; margin:12px 0 2px}
+  .price{font-size:32px; font-weight:650; line-height:1; letter-spacing:-.5px}
+  .chg{display:flex; gap:8px; font-size:13.5px; font-weight:550}
+  .up .price,.up .chg{color:var(--up)}
+  .down .price,.down .chg{color:var(--down)}
+  .flat .price{color:var(--text)} .flat .chg{color:var(--flat)}
+  @keyframes flashUp{0%{background:rgba(217,52,43,.16)}100%{background:transparent}}
+  @keyframes flashDown{0%{background:rgba(23,163,92,.16)}100%{background:transparent}}
+  .flash-up{animation:flashUp .9s ease-out; border-radius:6px}
+  .flash-down{animation:flashDown .9s ease-out; border-radius:6px}
+
+  .spark{width:100%; height:46px; display:block; margin:10px 0 12px}
+
+  .stats{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:9px 6px;
+    border-top:1px solid var(--line-soft); padding-top:11px;
+  }
+  .stats div{display:flex; flex-direction:column; gap:3px; min-width:0}
+  .stats span{font-size:11px; color:var(--muted)}
+  .stats b{font-size:12.5px; font-weight:520; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .stamp{font-size:11px; color:#b9bec7; margin-top:10px; text-align:right}
+
+  .empty{
+    text-align:center; color:var(--muted); padding:70px 20px; font-size:13.5px;
+    border:1px dashed var(--line); border-radius:14px; background:#fbfbfc;
+  }
+
+  /* ---------- 候选弹层 ---------- */
+  .overlay{
+    position:fixed; inset:0; background:rgba(31,35,41,.32); z-index:50;
+    display:none; align-items:center; justify-content:center; padding:20px;
+  }
+  .overlay.show{display:flex}
+  .dialog{
+    background:#fff; border-radius:14px; padding:20px; width:100%; max-width:380px;
+    box-shadow:0 20px 50px rgba(0,0,0,.18);
+  }
+  .dialog h3{margin:0 0 4px; font-size:15px}
+  .dialog p{margin:0 0 14px; font-size:12.5px; color:var(--muted)}
+  .cand{
+    display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:9px;
+    border:1px solid var(--line); cursor:pointer; margin-bottom:7px; transition:.14s;
+  }
+  .cand:hover{border-color:#b9cdfb; background:#f7faff}
+  .cand .n{font-weight:550}
+  .cand .m{margin-left:auto; font-size:11.5px; color:var(--muted)}
+  .dialog .btn{width:100%; margin-top:6px; height:36px}
+
+  .err-bar{
+    display:none; margin-bottom:14px; padding:9px 13px; border-radius:9px;
+    background:#fdf3e5; border:1px solid #f7e3c6; color:#9a6415; font-size:12.5px;
+  }
+  .err-bar.show{display:block}
+  @media (max-width:640px){
+    .bar{height:auto; flex-wrap:wrap; padding:10px 14px; gap:8px}
+    .meta{width:100%; margin-left:0; justify-content:flex-start}
+    .wrap{padding:14px}
+    .grid{grid-template-columns:1fr}
+    .price{font-size:28px}
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand">
+    <span class="dot" id="dot"></span>
+    <span>A股行情监测</span>
+    <span class="pill" id="pill">连接中…</span>
+  </div>
+  <div class="meta">
+    <span id="upd">等待数据…</span>
+    <span class="sep"></span>
+    <span class="countdown" id="cd">--</span>
+    <button class="btn" id="btnRefresh">立即刷新</button>
+    <button class="btn" id="btnBell" title="价格变动时弹出桌面通知">提醒：关</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="adder">
+    <input id="q" placeholder="输入股票代码或名称，如 600403 / 大有能源" autocomplete="off" spellcheck="false">
+    <button class="btn primary" id="btnAdd">添加监测</button>
+  </div>
+  <div class="hint" id="hint">数据每分钟更新一次，仅在 A 股交易时段采集。</div>
+  <div class="err-bar" id="errBar"></div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="dialog">
+    <h3>找到多只股票</h3>
+    <p>请选择你要监测的那一只</p>
+    <div id="cands"></div>
+    <button class="btn" id="btnCancel">取消</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var state = null;
+  var lastPrice = {};      // symbol -> 上次渲染的价格
+  var baseline = 0;        // 倒计时基准（本地时间戳）
+  var nextIn = -1;         // 服务器给出的秒数
+  var notifyOn = false;
+  var tick = 0;
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------------- 工具 ----------------
+  function fmt(n, d) {
+    if (n === null || n === undefined || isNaN(n)) return '—';
+    return Number(n).toFixed(d === undefined ? 2 : d);
+  }
+  function fmtVol(hands) {
+    if (!hands) return '—';
+    if (hands >= 1e6) return (hands / 1e6).toFixed(2) + '亿手';
+    if (hands >= 1e4) return (hands / 1e4).toFixed(2) + '万手';
+    return hands + '手';
+  }
+  function fmtAmt(wan) {
+    if (!wan) return '—';
+    if (wan >= 1e4) return (wan / 1e4).toFixed(2) + '亿';
+    return wan.toFixed(0) + '万';
+  }
+  function cls(pct) {
+    if (pct > 0.0001) return 'up';
+    if (pct < -0.0001) return 'down';
+    return 'flat';
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function say(msg, kind) {
+    var h = $('hint');
+    h.textContent = msg || '';
+    h.className = 'hint' + (kind ? ' ' + kind : '');
+  }
+
+  // ---------------- 迷你走势 ----------------
+  function sparkPath(hist) {
+    if (!hist || hist.length < 2) return '';
+    var W = 300, H = 46, pad = 4;
+    var ps = hist.map(function (d) { return d.p; });
+    var mn = Math.min.apply(null, ps), mx = Math.max.apply(null, ps);
+    var span = (mx - mn) || Math.max(mx * 0.001, 0.01);
+    var step = (W - pad * 2) / (hist.length - 1);
+    var pts = hist.map(function (d, i) {
+      return [pad + i * step, H - pad - (d.p - mn) / span * (H - pad * 2)];
+    });
+    var line = pts.map(function (p, i) {
+      return (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1);
+    }).join(' ');
+    var area = line + ' L' + pts[pts.length - 1][0].toFixed(1) + ',' + H +
+               ' L' + pts[0][0].toFixed(1) + ',' + H + ' Z';
+    return { line: line, area: area, min: mn, max: mx };
+  }
+
+  // ---------------- 渲染 ----------------
+  function render(s) {
+    state = s;
+
+    var mk = s.market || {};
+    $('dot').className = 'dot ' + (mk.state === 'open' ? 'open' : mk.state === 'break' ? 'break' : '');
+    $('pill').className = 'pill ' + (mk.state === 'open' ? 'open' : mk.state === 'break' ? 'break' : '');
+    $('pill').textContent = mk.desc || '—';
+    $('upd').textContent = s.last_update ? '更新于 ' + s.last_update.slice(11) : '等待数据…';
+
+    var eb = $('errBar');
+    if (s.error) { eb.textContent = '数据源异常：' + s.error; eb.classList.add('show'); }
+    else { eb.classList.remove('show'); }
+
+    nextIn = typeof s.next_in === 'number' ? s.next_in : -1;
+    baseline = Date.now();
+
+    var rows = s.rows || [];
+    var grid = $('grid');
+    if (!rows.length) {
+      grid.innerHTML = '<div class="empty">还没有监测标的，在上方输入股票代码或名称添加。</div>';
+      return;
+    }
+
+    var html = rows.map(function (r) {
+      var q = r.quote || {};
+      var has = q.price !== undefined && q.price !== null;
+      var k = has ? cls(q.change_pct) : 'flat';
+      var changed = has && lastPrice[r.symbol] !== undefined && lastPrice[r.symbol] !== q.price;
+      var flash = '';
+      if (changed) flash = q.price > lastPrice[r.symbol] ? ' flash-up' : ' flash-down';
+      if (has) lastPrice[r.symbol] = q.price;
+
+      var sp = has ? sparkPath(r.history) : '';
+      var spMin = sp ? fmt(sp.min) : '—', spMax = sp ? fmt(sp.max) : '—';
+      var pctTxt = has ? (q.change_pct > 0 ? '+' : '') + fmt(q.change_pct) + '%' : '—';
+      var amtTxt = has ? (q.change > 0 ? '+' : '') + fmt(q.change) : '—';
+
+      return '<article class="card ' + k + '">' +
+        '<button class="del" data-del="' + esc(r.symbol) + '" title="移除">×</button>' +
+        '<div class="card-head"><div>' +
+          '<div class="cname">' + esc(r.name) + '</div>' +
+          '<div class="ccode">' + esc(String(r.symbol).toUpperCase()) + '</div>' +
+        '</div></div>' +
+        '<div class="price-row">' +
+          '<div class="price' + flash + '">' + (has ? fmt(q.price) : '—') + '</div>' +
+          '<div class="chg"><span>' + amtTxt + '</span><span>' + pctTxt + '</span></div>' +
+        '</div>' +
+        (sp
+          ? '<svg class="spark" viewBox="0 0 300 46" preserveAspectRatio="none">' +
+              '<path d="' + sp.area + '" fill="' + (k === 'up' ? 'rgba(217,52,43,.10)' : k === 'down' ? 'rgba(23,163,92,.10)' : 'rgba(139,144,154,.10)') + '" stroke="none"/>' +
+              '<path d="' + sp.line + '" fill="none" stroke="' + (k === 'up' ? '#d9342b' : k === 'down' ? '#17a35c' : '#8b909a') + '" stroke-width="1.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>' +
+            '</svg>'
+          : '<div class="spark"></div>') +
+        '<div class="stats">' +
+          '<div><span>今开</span><b>' + (has ? fmt(q.open) : '—') + '</b></div>' +
+          '<div><span>昨收</span><b>' + (has ? fmt(q.preclose) : '—') + '</b></div>' +
+          '<div><span>最高</span><b>' + (has ? fmt(q.high) : '—') + '</b></div>' +
+          '<div><span>最低</span><b>' + (has ? fmt(q.low) : '—') + '</b></div>' +
+          '<div><span>成交量</span><b>' + (has ? fmtVol(q.volume) : '—') + '</b></div>' +
+          '<div><span>成交额</span><b>' + (has ? fmtAmt(q.amount) : '—') + '</b></div>' +
+          '<div><span>换手率</span><b>' + (has && q.turnover ? fmt(q.turnover) + '%' : '—') + '</b></div>' +
+          '<div><span>量比</span><b>' + (has && q.vol_ratio ? fmt(q.vol_ratio) : '—') + '</b></div>' +
+        '</div>' +
+        '<div class="stamp">' + (has && q.time ? q.time + ' · ' : '') +
+          (sp ? '区间 ' + spMin + ' ~ ' + spMax : '') + '</div>' +
+      '</article>';
+    }).join('');
+
+    grid.innerHTML = html;
+
+    if (notifyOn) checkNotify(rows);
+  }
+
+  // ---------------- 桌面通知 ----------------
+  function checkNotify(rows) {
+    rows.forEach(function (r) {
+      var q = r.quote || {};
+      if (q.price === undefined) return;
+      var prev = lastNotified[r.symbol];
+      if (prev !== undefined && Math.abs(q.price - prev) >= 0.01) {
+        try {
+          new Notification(r.name + ' ' + fmt(q.price), {
+            body: (q.change_pct > 0 ? '▲ +' : '▼ ') + fmt(q.change_pct) + '%   ' +
+                  (q.change > 0 ? '+' : '') + fmt(q.change),
+            tag: r.symbol
+          });
+        } catch (e) {}
+      }
+      lastNotified[r.symbol] = q.price;
+    });
+  }
+  var lastNotified = {};
+
+  // ---------------- 交互 ----------------
+  function fetchState() {
+    fetch('/api/state').then(function (r) { return r.json(); }).then(render).catch(function () {
+      $('pill').textContent = '连接断开';
+      $('pill').className = 'pill';
+      $('dot').className = 'dot';
+    });
+  }
+
+  function post(path, body) {
+    return fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    }).then(function (r) { return r.json(); });
+  }
+
+  function add(query, symbol, name) {
+    say('查询中…');
+    post('/api/add', { query: query, symbol: symbol, name: name }).then(function (res) {
+      if (res.ok) {
+        say(res.message + ' ✓', 'ok');
+        $('q').value = '';
+        fetchState();
+      } else if (res.need_selection) {
+        say('');
+        showCands(res.candidates, query);
+      } else {
+        say(res.message || '添加失败', 'err');
+      }
+    }).catch(function (e) { say('请求失败：' + e, 'err'); });
+  }
+
+  function showCands(list, query) {
+    var box = $('cands');
+    box.innerHTML = list.map(function (c) {
+      return '<div class="cand" data-sym="' + esc(c.symbol) + '" data-name="' + esc(c.name) + '">' +
+        '<span class="n">' + esc(c.name) + '</span>' +
+        '<span class="m">' + esc(c.code) + ' · ' + esc(c.market) + '</span></div>';
+    }).join('');
+    Array.prototype.forEach.call(box.querySelectorAll('.cand'), function (el) {
+      el.onclick = function () {
+        $('overlay').classList.remove('show');
+        add('', el.dataset.sym, el.dataset.name);
+      };
+    });
+    $('overlay').classList.add('show');
+  }
+
+  $('btnAdd').onclick = function () {
+    var v = $('q').value.trim();
+    if (!v) { say('请先输入股票代码或名称', 'err'); return; }
+    add(v);
+  };
+  $('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('btnAdd').click(); });
+  $('btnCancel').onclick = function () { $('overlay').classList.remove('show'); say(''); };
+  $('overlay').onclick = function (e) { if (e.target === this) $('btnCancel').click(); };
+
+  $('btnRefresh').onclick = function () {
+    this.disabled = true;
+    var b = this;
+    post('/api/refresh').then(function () {
+      say('已请求刷新…');
+      setTimeout(fetchState, 1200);
+      setTimeout(function () { b.disabled = false; }, 2500);
+    }).catch(function () { b.disabled = false; });
+  };
+
+  $('btnBell').onclick = function () {
+    if (notifyOn) {
+      notifyOn = false;
+      this.textContent = '提醒：关';
+      this.classList.remove('on');
+      return;
+    }
+    if (!('Notification' in window)) { say('当前浏览器不支持桌面通知', 'err'); return; }
+    var self = this;
+    Notification.requestPermission().then(function (p) {
+      if (p === 'granted') {
+        notifyOn = true;
+        self.textContent = '提醒：开';
+        self.classList.add('on');
+        lastNotified = {};
+        say('已开启桌面通知：价格变动时提醒', 'ok');
+      } else {
+        say('浏览器拒绝了通知权限，请在地址栏左侧放行', 'err');
+      }
+    });
+  };
+
+  $('grid').onclick = function (e) {
+    var btn = e.target.closest ? e.target.closest('[data-del]') : null;
+    if (!btn) return;
+    var sym = btn.dataset.del;
+    post('/api/remove', { symbol: sym }).then(function (res) {
+      say(res.message, res.ok ? 'ok' : 'err');
+      delete lastPrice[sym];
+      fetchState();
+    });
+  };
+
+  // ---------------- 倒计时 ----------------
+  // 页面同步与采集同频（2 秒），否则页面会比后端慢一拍
+  setInterval(function () {
+    tick++;
+    if (tick % 2 === 0) fetchState();
+    var el = $('cd');
+    if (nextIn < 0) { el.textContent = '休市中'; return; }
+    // 秒级刷新时倒计时没有信息量，直接标"实时"
+    if (nextIn <= 3) { el.textContent = '实时'; return; }
+    var left = Math.max(0, nextIn - Math.round((Date.now() - baseline) / 1000));
+    el.textContent = left > 0 ? left + 's 后更新' : '更新中…';
+  }, 1000);
+
+  fetchState();
+})();
+</script>
+</body>
+</html>

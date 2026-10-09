@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+build/
+dist/
+installer/*.exe
+*.log
+*.lock
+icon-preview.png
+bubble-shot.png
+close-shot.png
+icon.log
+shortcut.log

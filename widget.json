@@ -1,0 +1,12 @@
+{
+  "x": 2390,
+  "y": 29,
+  "alpha": 0.5,
+  "theme": "dark",
+  "topmost": true,
+  "interval": 2,
+  "alert_enabled": true,
+  "alert_pct": 1.0,
+  "alert_hidden_too": true,
+  "auto_close": true
+}
